@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Stavning</title>
+  <link rel="manifest" href="manifest.json">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Stavning">
+  <meta name="theme-color" content="#1f2330">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main>
+    <section id="view-setup" class="view">
+      <h1>Stavning</h1>
+      <p class="subtle">Lyssna och skriv det svenska ordet · 20 ord per omgång</p>
+
+      <h2>Kategorier</h2>
+      <div id="category-chips" class="chips" role="group" aria-label="Kategorier"></div>
+      <div class="chip-actions">
+        <button type="button" id="select-all" class="link-btn">Markera alla</button>
+        <button type="button" id="clear-all" class="link-btn">Rensa</button>
+      </div>
+      <p id="category-summary" class="subtle"></p>
+
+      <button id="start" class="primary">Starta</button>
+      <p id="setup-msg" class="message"></p>
+    </section>
+
+    <section id="view-quiz" class="view" hidden>
+      <div class="status-bar">
+        <span id="question-of"></span>
+        <span id="score"></span>
+        <span id="streak"></span>
+      </div>
+      <div class="speak-block">
+        <button type="button" id="speak" class="speak-btn" aria-label="Spela upp ordet">
+          <span class="speak-icon" aria-hidden="true">▶</span>
+          <span>Spela upp</span>
+        </button>
+        <p class="subtle speak-hint">Tryck för att höra ordet igen</p>
+      </div>
+      <div class="answer-block">
+        <span class="lang-tag">SV</span>
+        <input id="input" type="text"
+               autocomplete="off" autocapitalize="off"
+               autocorrect="off" spellcheck="false"
+               inputmode="text" enterkeyhint="send">
+      </div>
+      <div class="actions">
+        <button type="button" id="answer" class="primary">Svara</button>
+        <button type="button" id="skip" class="secondary">Hoppa över</button>
+      </div>
+      <div id="feedback" class="feedback"></div>
+    </section>
+
+    <section id="view-end" class="view" hidden>
+      <h1 id="end-headline"></h1>
+      <p id="end-streak" class="subtle"></p>
+      <h2 id="end-missed-heading" hidden></h2>
+      <ul id="end-missed-list"></ul>
+      <button type="button" id="play-again" class="primary">Spela igen</button>
+    </section>
+  </main>
+  <script type="module" src="app.js"></script>
+</body>
+</html>

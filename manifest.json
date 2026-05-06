@@ -1,0 +1,10 @@
+{
+  "name": "Stavning",
+  "short_name": "Stavning",
+  "start_url": ".",
+  "scope": ".",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#1c1f29",
+  "theme_color": "#1f2330"
+}

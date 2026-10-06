@@ -621,6 +621,34 @@ const BASE = [
     wrong:['afdrag','avdragg','avdrak','avddrag','avdra','afdrak'] },
 ];
 
+const SPELL_W41 = [
+  { w:'berätta', mark:'be[r]ä[tt]a',
+    tip:'Knep: be + rätta. Det är ä som i ”rätt”, och dubbel-t.',
+    sentence:'Kan du ___ vad som hände på resan?',
+    wrong:['beretta','beräta','berrätta','bärätta','bereta'] },
+  { w:'bestämde', mark:'bestä[m]de',
+    tip:'Knep: bestämma har två m, men före d blir det bara ett: bestämde. Samma sak i ”glömde” och ”rymde”.',
+    sentence:'Vi ___ oss för att åka till stranden.',
+    wrong:['bestämmde','bestemde','bestämnde','bästämde','bestämdde'] },
+  { w:'busshållplatsen', mark:'bu[ss]hå[ll]platsen',
+    tip:'Knep: buss + håll + plats + en. Två s från ”buss” och två l från ”håll”. Inget extra s i mitten.',
+    sentence:'Vi väntade länge vid ___ i regnet.',
+    wrong:['bushållplatsen','busshålplatsen','busshållsplatsen','bushålplatsen','busshållplattsen'] },
+  { w:'cykeln', mark:'[c]y[k]eln',
+    tip:'Knep: cykel börjar med c och har bara k (inte ck). Cykel + n blir cykeln.',
+    sentence:'Jag låste ___ utanför skolan.',
+    wrong:['sykeln','cyckeln','cykelen','cykln','syckeln'] },
+  { w:'direkt', mark:'d[i]re[kt]',
+    tip:'Knep: di + rekt, med i och sedan e. På svenska slutar det på -kt, inte -ct som på engelska.',
+    sentence:'Kom hem ___ efter skolan!',
+    wrong:['derekt','diräkt','direct','dirrekt','direckt'] },
+];
+const SPELL_UNITS_DEF = [
+  {id:'v41', name:'Vecka 41', sub:'Stavningsläxa', words:SPELL_W41},
+  {id:'v40', name:'Vecka 40', sub:'Repetition', words:BASE},
+];
+const SPELL_ALL = SPELL_UNITS_DEF.flatMap(u => u.words);
+
 const DE_SECTIONS = [
   {id:'k1', name:'Kapitel 1', sub:'Glosor v.36', items:[
     ['das Haus','huset'],['die Katze','katten'],['die Maus','musen'],['der Himmel','himlen'],['die Sonne','solen'],['der Mann','mannen'],
@@ -948,6 +976,7 @@ let words = [];        // spelling course: word objects
 let SECTIONS = [];     // language course: [{id,name,sub,items:[item]}]
 let IMAP = {};         // language course: key -> item
 let VERBS = [];
+let SPELL_UNITS = [];  // spelling course: [{id,name,sub,words}]
 function trackDef(id){ return TRACKS.find(t => t.id === id) || TRACKS[0]; }
 function loadTrack(){
   if (!ST) return;
@@ -955,8 +984,11 @@ function loadTrack(){
   const custom = TS().custom;
   words = []; SECTIONS = []; IMAP = {}; VERBS = [];
   if (TRACK.kind === 'spell'){
-    const list = (custom && custom.length) ? custom : BASE.map(b => b.w);
-    words = list.map(w => BASE.find(x => x.w === w) || { w, mark:autoMark(w), tip:'', sentence:'', wrong:genWrong(w) });
+    const mk = w => SPELL_ALL.find(x => x.w === w) || { w, mark:autoMark(w), tip:'', sentence:'', wrong:genWrong(w) };
+    SPELL_UNITS = (custom && custom.length)
+      ? [{id:'egna', name:'Egna ord', sub:'Ordlistan', words:custom.map(mk)}]
+      : SPELL_UNITS_DEF.map(u => ({id:u.id, name:u.name, sub:u.sub, words:u.words.map(o => mk(o.w))}));
+    words = SPELL_UNITS.flatMap(u => u.words);
   } else {
     const secs = (custom && custom.length) ? custom : TRACK.sections;
     SECTIONS = secs.map(s => ({id:s.id, name:s.name, sub:s.sub||'', items:[]}));
@@ -1201,7 +1233,22 @@ function renderTop(){
   $('#soundBtn').setAttribute('aria-label', ST.muted ? 'Slå på ljud' : 'Stäng av ljud');
 }
 function coursePath(){
-  if (TRACK.kind === 'spell') return [{title:'Veckans ord', sub:'Enhet 1', seq:true, nodes:SPELL_PATH}];
+  if (TRACK.kind === 'spell'){
+    // Week 40 keeps the original node ids so earlier progress still counts.
+    const units = SPELL_UNITS.map((u,i) => { const pre = u.id === 'v40' ? '' : u.id+':';
+      return {title:u.name, sub:'Del '+(i+1)+(u.sub ? ' · '+u.sub : ''), nodes:[
+        {id:pre+'intro', name:'Lär känna orden', icon:'book', plan:'intro', sec:u.id},
+        {id:pre+'choose', name:'Välj rätt', icon:'choice', plan:'choose', sec:u.id},
+        {id:pre+'gap', name:'Saknad bokstav', icon:'gap', plan:'gap', sec:u.id},
+        {id:pre+'build', name:'Bygg ordet', icon:'tiles', plan:'build', sec:u.id},
+      ].concat(i % 2 === 1 ? [{id:pre+'chest1', name:'Skattkista', kind:'chest'}] : [])}; });
+    units.push({title:'Alla ord', sub:'Repetition', nodes:[
+      {id:'space', name:'Rymdfärden', icon:'rocket', kind:'space'},
+      {id:'mix', name:'Blandat', icon:'mix', plan:'mix'},
+      {id:'chest2', name:'Skattkista', kind:'chest'},
+      {id:'boss', name:'Mästarprovet', icon:'crown', kind:'boss', plan:'boss'}]});
+    return units;
+  }
   const units = SECTIONS.map((s,i) => ({title:s.name, sub:'Del '+(i+1)+(s.sub ? ' · '+s.sub : ''), nodes:[
     {id:s.id+':learn', name:'Lär dig', icon:'book', plan:'learn', sec:s.id},
     {id:s.id+':practice', name:'Öva', icon:'mix', plan:'practice', sec:s.id},
@@ -1252,7 +1299,7 @@ function renderHome(){
   }).join('')+'</div>').join('');
   let wordsHTML = '';
   if (TRACK.kind === 'spell'){
-    wordsHTML = '<div class="section"><span class="kicker">Orden</span>'+words.map(o => '<div class="wrow"><span class="ww">'+markHTML(o.mark)+'</span>'+starsHTML(lvl(o.w))+speakBtn(o.w,'sv')+'</div>').join('')+'</div>';
+    wordsHTML = SPELL_UNITS.map(u => '<div class="section"><span class="kicker">Orden · '+esc(u.name)+'</span>'+u.words.map(o => '<div class="wrow"><span class="ww">'+markHTML(o.mark)+'</span>'+starsHTML(lvl(o.w))+speakBtn(o.w,'sv')+'</div>').join('')+'</div>').join('');
   } else if (SECTIONS.length){
     const n = allItems().length;
     wordsHTML = '<div class="section"><details class="glossary"><summary>Alla glosor ('+n+')</summary>'+SECTIONS.map(s => '<h3>'+esc(s.name)+'</h3>'+s.items.map(it =>
@@ -1401,8 +1448,9 @@ let L = null, EX = null, timer = 0;
 const keyOf = ex => ex.key || ex.w;
 function lowFirst(keys, max){ return shuffle(keys).sort((a,b) => lvl(a) - lvl(b)).slice(0, max); }
 function noAdj(p){ for (let i=1;i<p.length;i++){ if (keyOf(p[i]) === keyOf(p[i-1])){ const j = p.findIndex((x,k) => k > i && keyOf(x) !== keyOf(p[i]) && keyOf(p[k-1]) !== keyOf(p[i]) && (k+1 >= p.length || keyOf(p[k+1]) !== keyOf(p[i]))); if (j > -1) [p[i],p[j]] = [p[j],p[i]]; } } return p; }
-function planSpell(kind, crowns){
-  const W = lowFirst(words.map(o => o.w), 6), p = [];
+function planSpell(kind, crowns, sec){
+  const unit = sec && SPELL_UNITS.find(u => u.id === sec);
+  const W = lowFirst((unit ? unit.words : words).map(o => o.w), unit ? 6 : 8), p = [];
   if (kind === 'intro'){ W.forEach(w => { p.push({t:'intro', w}); p.push({t:'mc', w, n:3}); }); shuffle(W).slice(0,3).forEach(w => p.push({t:'tf', w})); return p; }
   if (kind === 'choose'){ W.forEach(w => p.push({t:'mc', w, n:crowns ? 4 : 3})); shuffle(W).slice(0,3).forEach(w => p.push({t:'tf', w})); }
   else if (kind === 'gap'){ W.forEach(w => p.push({t:'gap', w})); shuffle(W).slice(0,3).forEach(w => p.push({t:'gap', w})); shuffle(W).slice(0,2).forEach(w => p.push({t:'mc', w, n:4})); }
@@ -1462,7 +1510,7 @@ function startLesson(node){
   if (!hasContent()) return toast('Här finns inga ord än.');
   clearTimeout(timer);
   const crowns = (TS().nodes[node.id] && TS().nodes[node.id].c) || 0;
-  const plan = TRACK.kind === 'spell' ? planSpell(node.plan, crowns) : planLang(node, crowns);
+  const plan = TRACK.kind === 'spell' ? planSpell(node.plan, crowns, node.sec) : planLang(node, crowns);
   if (!plan.length) return toast('Här finns inga ord än.');
   L = {node, plan, crowns, i:0, ok:0, answered:0, xp:0, combo:0, maxCombo:0, t0:Date.now(), hearts: node.kind === 'boss' ? 3 : null, extras:0, retry:false, locked:false};
   openOnly('lesson'); $('#quitBtn').innerHTML = I.close; showEx();
@@ -1681,9 +1729,12 @@ const RND = {
 };
 function fitSlots(){
   const el = $('#slots'); if (!el || !el.children.length) return;
-  const n = el.children.length, W = el.clientWidth || el.parentElement.clientWidth, gap = n > 10 ? 4 : 6;
-  const ts = Math.max(24, Math.min(56, Math.floor((W - gap*(n-1))/n)));
-  el.style.gap = gap+'px'; [...el.children].forEach(s => s.style.setProperty('--ts', ts+'px'));
+  const n = el.children.length, W = el.clientWidth || el.parentElement.clientWidth, gap = n > 12 ? 3 : n > 10 ? 4 : 6;
+  const ts = Math.max(18, Math.min(56, Math.floor((W - gap*(n-1))/n)));
+  // Very long words (busshållplatsen) wrap onto two rows instead of shrinking the tiles to crumbs.
+  const wrap = ts < 28, size = wrap ? 34 : ts;
+  el.style.flexWrap = wrap ? 'wrap' : 'nowrap'; el.style.rowGap = wrap ? '8px' : '';
+  el.style.gap = (wrap ? 4 : gap)+'px'; [...el.children].forEach(s => s.style.setProperty('--ts', size+'px'));
 }
 
 /* ---- language exercises ---- */
@@ -2387,7 +2438,7 @@ function openEditor(){
   try{ dlg.showModal(); }catch(e){ dlg.setAttribute('open',''); }
 }
 $('#edCancel').onclick = () => dlg.close();
-$('#edReset').onclick = () => { $('#wordsInput').value = TRACK.kind === 'lang' ? sectionsToText(TRACK.sections) : BASE.map(b => b.w).join('\n'); };
+$('#edReset').onclick = () => { $('#wordsInput').value = TRACK.kind === 'lang' ? sectionsToText(TRACK.sections) : SPELL_ALL.map(b => b.w).join('\n'); };
 $('#edSave').onclick = () => {
   const text = $('#wordsInput').value;
   if (TRACK.kind === 'lang'){
@@ -2411,7 +2462,7 @@ $('#edSave').onclick = () => {
     const bad = raw.filter(s => !/^[a-zåäöé]{2,20}$/.test(s)), list = [...new Set(raw.filter(s => /^[a-zåäöé]{2,20}$/.test(s)))];
     if (!list.length){ $('#edErr').textContent = 'Skriv minst ett ord, ett per rad.'; return; }
     if (bad.length){ $('#edErr').textContent = 'De här gick inte att använda (bara bokstäver, inga mellanslag): '+bad.join(', '); return; }
-    const isBase = list.length === BASE.length && list.every((w,i) => w === BASE[i].w);
+    const isBase = list.length === SPELL_ALL.length && list.every((w,i) => w === SPELL_ALL[i].w);
     TS().custom = isBase ? null : list;
   }
   save(); loadTrack(); dlg.close(); renderHome();

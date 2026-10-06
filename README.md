@@ -30,6 +30,14 @@ Redigera [`words.json`](./words.json) — gärna direkt i GitHubs webbgränssnit
 - Lägg till en ny kategori genom att lägga in ett objekt i topp-listan `categories`: `{ "key": "egennamn", "label": "Egennamn" }`.
 - (Frivilligt) `accept_sv: ["alternativ"]` — alternativa stavningar som accepteras med en uppmuntrande kommentar.
 
+## Ordglitter
+
+I mappen [`ordglitter/`](./ordglitter/) finns ett separat övningsspel med flera kurser (Stavning 6B, Tyska 6B, Engelska 6B, Engelska 4B), spelarprofiler, en lektionsstig, Rymdfärden och en butik. Allt ligger i en enda fil, [`ordglitter/index.html`](./ordglitter/index.html), utan byggsteg och utan `fetch`, så den fungerar även direkt från disk.
+
+- **Adress:** `https://crogre.github.io/stavning/ordglitter/` när GitHub Pages publicerar `main`.
+- **Sparande:** framstegen sparas i webbläsarens `localStorage` för just den adressen. Sparkoden (”Kopiera sparkod” / ”Ladda sparkod”) flyttar framstegen mellan enheter och från den gamla Claude-länken.
+- **Nya glosor:** kurserna ligger som data överst i skriptet (`DE_SECTIONS`, `EN6_SECTIONS`, `EN4_SECTIONS` och `BASE` för stavning). En sektion är `{id, name, sub, items:[['främmande','svenska'], …]}`.
+
 ## Köra lokalt
 
 ```sh

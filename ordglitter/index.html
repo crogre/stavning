@@ -650,6 +650,9 @@ const SPELL_UNITS_DEF = [
 const SPELL_ALL = SPELL_UNITS_DEF.flatMap(u => u.words);
 
 const DE_SECTIONS = [
+  {id:'k6', name:'Kapitel 6', sub:'Glosor v.43 · veckodagar', items:[
+    ['Montag','måndag'],['Dienstag','tisdag'],['Mittwoch','onsdag'],['Donnerstag','torsdag'],['Freitag','fredag'],['Samstag','lördag'],['Sonntag','söndag'],
+    ['am Freitag','på fredag'],['die Woche','veckan'],['der Tag','dagen'],['manchmal','ibland'],['reiten','rida'],['das Pferd','hästen'],['endlich','äntligen'],['Freunde treffen','träffa vänner']]},
   {id:'k1', name:'Kapitel 1', sub:'Glosor v.36', items:[
     ['das Haus','huset'],['die Katze','katten'],['die Maus','musen'],['der Himmel','himlen'],['die Sonne','solen'],['der Mann','mannen'],
     ['die Gitarre','gitarren'],['das Foto','fotot'],['der Lehrer','läraren'],['der Stuhl','stolen'],['das Mädchen','flickan'],['die Musik','musiken'],
@@ -685,7 +688,7 @@ const DE_VERBS = [
   {inf:'haben', sv:'ha', f:{ich:'habe', du:'hast', 'er/sie':'hat'}, irr:true},
   {inf:'sein', sv:'vara', f:{ich:'bin', du:'bist', 'er/sie':'ist'}, irr:true},
 ];
-const DE_TEST = {title:'Prov v.41', scope:'Kapitel 1–5', parts:['Läsförståelse','Hörförståelse','Skriv om dig själv','Böja verb och frågeord']};
+const DE_TEST = {title:'Läxa v.43', scope:'Kapitel 6', parts:['Veckodagarna','Glosor kapitel 6','am Freitag = på fredag']};
 
 const EN6_SECTIONS = [
   {id:'v41', name:'Vecka 41', sub:'3B NYC and L.A. · förhör tor', items:[

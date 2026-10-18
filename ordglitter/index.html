@@ -643,8 +643,31 @@ const SPELL_W41 = [
     sentence:'Kom hem ___ efter skolan!',
     wrong:['derekt','diräkt','direct','dirrekt','direckt'] },
 ];
+const SPELL_W43 = [
+  { w:'farligt', mark:'farli[g]t',
+    tip:'Knep: farlig + t. G:et hörs nästan inte, men det ska vara med: farligt.',
+    sentence:'Det är ___ att cykla utan hjälm.',
+    wrong:['farlit','farlikt','farrligt','farligkt','farliggt'] },
+  { w:'fastän', mark:'fa[s]t[ä]n',
+    tip:'Knep: fast + än skrivs ihop till ett ord, med ä som i ”än”.',
+    sentence:'Vi gick ut ___ det regnade.',
+    wrong:['fasten','fasstän','fastänn','fasttän','fastenn'] },
+  { w:'fortsatte', mark:'forts[a][tt]e',
+    tip:'Knep: fort + satte. Det heter fortsätta, men i dåtid blir det a och dubbel-t, precis som sätta blir satte.',
+    sentence:'Hon ___ att läsa fast det var sent.',
+    wrong:['fortsätte','fortsate','forsatte','fortssatte','fårtsatte'] },
+  { w:'fönstret', mark:'fön[s]t[r]et',
+    tip:'Knep: fönster + et blir fönstret. E:et före r försvinner, så det blir inte ”fönsteret”.',
+    sentence:'Katten satt och tittade ut genom ___.',
+    wrong:['fönsteret','fönstert','fönnstret','föntret','fönsstret'] },
+  { w:'förresten', mark:'fö[rr]e[s]ten',
+    tip:'Knep: för + resten skrivs ihop. Då hamnar två r bredvid varandra: förresten.',
+    sentence:'Har du ___ sett min mössa?',
+    wrong:['föresten','förrestten','förrästen','förressten','förestten'] },
+];
 const SPELL_UNITS_DEF = [
-  {id:'v41', name:'Vecka 41', sub:'Stavningsläxa', words:SPELL_W41},
+  {id:'v43', name:'Vecka 43', sub:'Stavningsläxa', words:SPELL_W43},
+  {id:'v41', name:'Vecka 41', sub:'Repetition', words:SPELL_W41},
   {id:'v40', name:'Vecka 40', sub:'Repetition', words:BASE},
 ];
 const SPELL_ALL = SPELL_UNITS_DEF.flatMap(u => u.words);

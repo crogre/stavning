@@ -2,7 +2,7 @@
   color-scheme: light;
   --bg: #F5F3EC; --surface: #FFFFFF; --text: #1F2A2E; --muted: #566367; --line: #DDD8CA;
   --primary: #0E5E6F; --primary-d: #0A4957; --on-primary: #FFFFFF; --disabled: #D9D6CB; --on-disabled: #6E7477;
-  --sea: #CFE2E9; --void: #E8E6DD; --land: #EFE9D8; --coast: #9F9B85;
+  --sea: #CFE2E9; --void: #E8E6DD; --land: #EFE9D8; --coast: #9F9B85; --river: #6FA6BD;
   --hit: #D1410C; --halo: rgba(255,255,255,.85);
   --pin: #1E1B4B; --pin-line: #FFFFFF; --pin-eye: #FFFFFF;
   --right: #0F6B41; --right-soft: #DDF3E7; --near: #7F5300; --near-soft: #FBEFD2; --wrong: #AD2438; --wrong-soft: #FBE3E6;
@@ -13,7 +13,7 @@
     color-scheme: dark;
     --bg: #11191D; --surface: #1A2429; --text: #E8EEF0; --muted: #A2B3B9; --line: #2C3B41;
     --primary: #5CC8D8; --primary-d: #3FAEBF; --on-primary: #06262D; --disabled: #2C3B41; --on-disabled: #93A4AA;
-    --sea: #17323D; --void: #0D1417; --land: #43524C; --coast: #6E8077;
+    --sea: #17323D; --void: #0D1417; --land: #43524C; --coast: #6E8077; --river: #5F98AE;
     --hit: #FF9457; --halo: rgba(5,15,20,.8);
     --pin: #FFE27A; --pin-line: #1A1500; --pin-eye: #1A1500;
     --right: #7EE2AE; --right-soft: #15372A; --near: #F0C25A; --near-soft: #3A2E12; --wrong: #FFA9B5; --wrong-soft: #40202A;
@@ -122,6 +122,10 @@ body.in-quiz { overflow: hidden; overscroll-behavior: none; }
 .map.answered { cursor: grab; }
 .sphere { fill: var(--sea); }
 .land { fill: var(--land); stroke: var(--coast); stroke-width: .7px; vector-effect: non-scaling-stroke; stroke-linejoin: round; }
+.rivers { fill: none; stroke: var(--river); stroke-width: .8px; vector-effect: non-scaling-stroke; stroke-linejoin: round; stroke-linecap: round; }
+.rivers-minor { display: none; }
+.map.zoomed .rivers-minor { display: inline; }
+.lakes { fill: var(--sea); stroke: var(--river); stroke-width: .5px; vector-effect: non-scaling-stroke; stroke-linejoin: round; }
 .f-area { fill: var(--hit); fill-opacity: .32; stroke: var(--hit); stroke-width: 2px; vector-effect: non-scaling-stroke; stroke-linejoin: round; }
 .f-halo { fill: none; stroke: var(--halo); stroke-width: 7px; vector-effect: non-scaling-stroke; stroke-linejoin: round; stroke-linecap: round; }
 .f-line { fill: none; stroke: var(--hit); stroke-width: 3.5px; vector-effect: non-scaling-stroke; stroke-linejoin: round; stroke-linecap: round; }

@@ -55,7 +55,7 @@
 
   <footer class="foot">
     <button id="resetBtn" class="btn-link" type="button">Nollställ framsteg</button>
-    <p>Kartdata: <a href="https://www.naturalearthdata.com/" rel="noopener">Natural Earth</a> (public domain).</p>
+    <p>Kartdata: <a href="https://www.naturalearthdata.com/" rel="noopener">Natural Earth</a> (public domain). Projektion: Equal Earth.</p>
   </footer>
 </main>
 
@@ -76,6 +76,9 @@
     <svg id="map" class="map" tabindex="0" role="application" aria-label="Världskarta. Tryck för att sätta nålen. Med tangentbord: piltangenterna flyttar kartan, plus och minus zoomar, Enter sätter nålen i mitten." xmlns="http://www.w3.org/2000/svg">
       <path id="sphere" class="sphere"/>
       <path id="land" class="land"/>
+      <path id="rivers-minor" class="rivers rivers-minor"/>
+      <path id="rivers" class="rivers"/>
+      <path id="lakes" class="lakes"/>
       <g id="reveal"></g>
       <line id="connector" class="connector" hidden/>
       <g id="pin" class="pin" hidden>
@@ -137,7 +140,7 @@
   </div>
 </dialog>
 
-<script src="land.js"></script>
+<script src="map-data.js"></script>
 <script src="geo.js"></script>
 <script src="places.js"></script>
 <script src="app.js"></script>

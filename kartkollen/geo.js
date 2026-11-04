@@ -5,42 +5,44 @@ window.KK = window.KK || {};
   const R = 6371.0088; // mean Earth radius, km
   const D = Math.PI / 180;
 
-  // Natural Earth projection (Šavrič et al.), same coefficients as d3-geo's geoNaturalEarth1,
-  // and the same scale/translate that land.js was generated with.
-  const SCALE = 178, TX = 500, TY = 262;
+  // Equal Earth projection (Šavrič, Patterson & Jenny 2018), same coefficients as d3-geo's
+  // geoEqualEarth, and the same scale/translate that map-data.js was generated with.
+  const SCALE = 180, TX = 500, TY = 251;
   KK.MAP_W = 1000;
-  KK.MAP_H = 524;
+  KK.MAP_H = 502;
 
-  function xFactor(phi) {
-    const p2 = phi * phi, p4 = p2 * p2;
-    return 0.8707 - 0.131979 * p2 + p4 * (-0.013791 + p4 * (0.003971 * p2 - 0.001529 * p4));
+  const A1 = 1.340264, A2 = -0.081106, A3 = 0.000893, A4 = 0.003796;
+  const M = Math.sqrt(3) / 2;
+  const THETA_MAX = Math.asin(M); // the pole
+  function yRaw(t) {
+    const t2 = t * t, t6 = t2 * t2 * t2;
+    return t * (A1 + A2 * t2 + t6 * (A3 + A4 * t2));
   }
-  function yRaw(phi) {
-    const p2 = phi * phi, p4 = p2 * p2;
-    return phi * (1.007226 + p2 * (0.015085 + p4 * (-0.044475 + 0.028874 * p2 - 0.005916 * p4)));
+  function yDeriv(t) {
+    const t2 = t * t, t6 = t2 * t2 * t2;
+    return A1 + 3 * A2 * t2 + t6 * (7 * A3 + 9 * A4 * t2);
   }
-  const Y_MAX = yRaw(Math.PI / 2);
+  const Y_MAX = yRaw(THETA_MAX);
 
   KK.project = function (lon, lat) {
-    const phi = lat * D;
-    return [TX + SCALE * lon * D * xFactor(phi), TY - SCALE * yRaw(phi)];
+    const t = Math.asin(M * Math.sin(lat * D));
+    return [TX + SCALE * (lon * D * Math.cos(t)) / (M * yDeriv(t)), TY - SCALE * yRaw(t)];
   };
 
   // Map units to [lon, lat]. Points outside the globe snap to its edge, so a tap just above
   // the map counts as the North Pole and one beyond the side counts as ±180°.
   KK.unproject = function (x, y) {
     const Y = Math.max(-Y_MAX, Math.min(Y_MAX, (TY - y) / SCALE));
-    let phi = Y;
-    for (let i = 0; i < 25; i++) {
-      const p2 = phi * phi, p4 = p2 * p2;
-      const d = (yRaw(phi) - Y) /
-        (1.007226 + p2 * (0.015085 * 3 + p4 * (-0.044475 * 7 + 0.028874 * 9 * p2 - 0.005916 * 11 * p4)));
-      phi -= d;
+    let t = Y;
+    if (Math.abs(Y) === Y_MAX) t = Math.sign(Y) * THETA_MAX;
+    else for (let i = 0; i < 25; i++) {
+      const d = (yRaw(t) - Y) / yDeriv(t);
+      t -= d;
       if (Math.abs(d) < 1e-9) break;
     }
-    phi = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, phi));
-    const lam = ((x - TX) / SCALE) / xFactor(phi);
-    return [Math.max(-180, Math.min(180, lam / D)), phi / D];
+    const lam = (M * ((x - TX) / SCALE) * yDeriv(t)) / Math.cos(t);
+    const lat = Math.abs(Y) === Y_MAX ? Math.sign(Y) * 90 : Math.asin(Math.min(1, Math.max(-1, Math.sin(t) / M))) / D;
+    return [Math.max(-180, Math.min(180, lam / D)), lat];
   };
 
   function vec(lon, lat) {

@@ -280,6 +280,9 @@
   const screenFixed = []; // overlay items that keep their size on screen: {el, x, y}
 
   $('land').setAttribute('d', KK.LAND_D);
+  $('rivers').setAttribute('d', KK.RIVERS_D);
+  $('rivers-minor').setAttribute('d', KK.RIVERS_MINOR_D);
+  $('lakes').setAttribute('d', KK.LAKES_D);
   $('sphere').setAttribute('d', KK.SPHERE_D);
 
   function clampView(v) {
@@ -293,6 +296,7 @@
     clampView(view);
     const vw = W / view.k, vh = H / view.k;
     map.setAttribute('viewBox', (view.cx - vw / 2).toFixed(3) + ' ' + (view.cy - vh / 2).toFixed(3) + ' ' + vw.toFixed(3) + ' ' + vh.toFixed(3));
+    map.classList.toggle('zoomed', view.k >= minK * 2);
     const s = (1 / view.k).toFixed(5);
     for (const o of screenFixed) o.el.setAttribute('transform', 'translate(' + o.x.toFixed(3) + ' ' + o.y.toFixed(3) + ') scale(' + s + ')');
   }

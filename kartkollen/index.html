@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Kartkollen</title>
+<meta name="description" content="Öva geografi: sätt nålen där platsen ligger på världskartan.">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" type="image/png" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Kartkollen">
+<meta name="theme-color" media="(prefers-color-scheme: light)" content="#F5F3EC">
+<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#11191D">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<main id="home" class="page" hidden>
+  <header class="home-head">
+    <h1>Kartkollen</h1>
+    <p class="lede">Sätt nålen där platsen ligger. När du har fått rätt tre gånger sitter den.</p>
+  </header>
+
+  <p id="storageNote" class="note" hidden>Den här webbläsaren sparar inte dina framsteg. De försvinner när du stänger sidan.</p>
+
+  <section aria-labelledby="scopeLabel">
+    <h2 id="scopeLabel" class="label">Vad vill du öva på?</h2>
+    <div id="scopes" class="chips" role="radiogroup" aria-labelledby="scopeLabel"></div>
+  </section>
+
+  <section class="start-card">
+    <p id="summary" class="summary"></p>
+    <div id="meter" class="meter" aria-hidden="true"><span></span></div>
+    <p id="doneNote" class="done-note" hidden>Alla platser sitter! Repetera gärna, så stannar de kvar.</p>
+    <button id="startBtn" class="btn primary" type="button"></button>
+  </section>
+
+  <section aria-labelledby="overviewLabel">
+    <h2 id="overviewLabel" class="label">Så här långt har du kommit</h2>
+    <div id="overview"></div>
+  </section>
+
+  <details class="howto">
+    <summary>Hur räknas det?</summary>
+    <ul>
+      <li><strong>Rätt</strong> ger ett steg. Tre steg, och platsen sitter.</li>
+      <li><strong>Nära</strong> ger inget steg, men du tappar inget heller.</li>
+      <li><strong>Fel</strong> tar bort ett steg.</li>
+    </ul>
+    <p>Platser du missar kommer tillbaka lite senare. Hur nära du måste vara beror på platsen: det är lättare att pricka Sahara än Panamakanalen, så där får du lite mer marginal.</p>
+  </details>
+
+  <footer class="foot">
+    <button id="resetBtn" class="btn-link" type="button">Nollställ framsteg</button>
+    <p>Kartdata: <a href="https://www.naturalearthdata.com/" rel="noopener">Natural Earth</a> (public domain).</p>
+  </footer>
+</main>
+
+<main id="quiz" class="quiz" hidden>
+  <div class="quiz-top">
+    <div class="quiz-bar">
+      <button id="exitBtn" class="btn-link" type="button">Avsluta</button>
+      <span id="counter" class="counter"></span>
+    </div>
+    <div class="meter thin" aria-hidden="true"><span id="roundBar"></span></div>
+    <div class="prompt" aria-live="polite">
+      <span class="prompt-q">Var ligger</span>
+      <span id="placeName" class="prompt-name"></span>
+    </div>
+  </div>
+
+  <div id="mapWrap" class="map-wrap">
+    <svg id="map" class="map" tabindex="0" role="application" aria-label="Världskarta. Tryck för att sätta nålen. Med tangentbord: piltangenterna flyttar kartan, plus och minus zoomar, Enter sätter nålen i mitten." xmlns="http://www.w3.org/2000/svg">
+      <path id="sphere" class="sphere"/>
+      <path id="land" class="land"/>
+      <g id="reveal"></g>
+      <line id="connector" class="connector" hidden/>
+      <g id="pin" class="pin" hidden>
+        <circle class="pin-tip" r="3"/>
+        <path class="pin-body" d="M0 -1C-3 -11-13-18-13-30A13 13 0 1 1 13-30C13-18 3-11 0-1Z"/>
+        <circle class="pin-eye" cy="-30" r="4.5"/>
+      </g>
+    </svg>
+    <div class="crosshair" aria-hidden="true"></div>
+    <div class="zoom">
+      <button id="zoomIn" type="button" aria-label="Zooma in">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+      </button>
+      <button id="zoomOut" type="button" aria-label="Zooma ut">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"/></svg>
+      </button>
+      <button id="zoomAll" type="button" aria-label="Visa hela världen">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4H4v5M15 4h5v5M9 20H4v-5M15 20h5v-5"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <div class="quiz-panel">
+    <div id="askPanel">
+      <p id="hint" class="hint"></p>
+      <button id="confirmBtn" class="btn primary" type="button" disabled>Bekräfta</button>
+    </div>
+    <div id="answerPanel" hidden>
+      <div id="verdict" class="verdict" role="status">
+        <span id="verdictIcon" class="tier-icon" aria-hidden="true"></span>
+        <span id="verdictWord" class="verdict-word"></span>
+        <span id="verdictPips" class="pips"></span>
+      </div>
+      <p id="distance" class="distance"></p>
+      <p id="fact" class="fact"></p>
+      <button id="nextBtn" class="btn primary" type="button">Nästa</button>
+    </div>
+  </div>
+</main>
+
+<main id="result" class="page" hidden>
+  <header class="home-head">
+    <h1>Omgången är klar</h1>
+    <p id="resultLine" class="lede"></p>
+  </header>
+  <div class="result-actions">
+    <button id="againBtn" class="btn primary" type="button">En omgång till</button>
+    <button id="toHomeBtn" class="btn" type="button">Till översikten</button>
+  </div>
+  <ul id="resultList" class="rows"></ul>
+</main>
+
+<dialog id="resetDialog" class="dialog" aria-labelledby="resetTitle">
+  <h2 id="resetTitle">Nollställa framsteg?</h2>
+  <p>Alla platser börjar om från noll. Det går inte att ångra.</p>
+  <div class="dialog-actions">
+    <button id="resetCancel" class="btn" type="button">Avbryt</button>
+    <button id="resetConfirm" class="btn danger" type="button">Nollställ</button>
+  </div>
+</dialog>
+
+<script src="land.js"></script>
+<script src="geo.js"></script>
+<script src="places.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

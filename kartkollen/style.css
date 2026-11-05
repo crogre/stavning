@@ -102,6 +102,7 @@ body.in-quiz { overflow: hidden; overscroll-behavior: none; }
 .quiz {
   height: 100vh; height: 100dvh; display: grid; grid-template-rows: auto minmax(0, 1fr) auto;
   grid-template-areas: "top" "map" "panel";
+  touch-action: pan-x pan-y; /* no page pinch-zoom around the map; the side panel can still scroll */
 }
 .quiz-top {
   grid-area: top; background: var(--surface); border-bottom: 1px solid var(--line);

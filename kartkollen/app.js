@@ -400,8 +400,16 @@
     return { c: [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2], d: Math.max(1, Math.hypot(a[0] - b[0], a[1] - b[1])) };
   }
 
+  // Browsers don't always send pointerup or pointercancel: the OS can take over a touch (a
+  // notification, an edge swipe, a screenshot, the app going to the background). A finger left
+  // behind in `ptrs` would turn every later drag into a pinch against a phantom and block taps,
+  // so anything that ends or interrupts a gesture forgets all of them.
+  function resetGesture() { ptrs.clear(); g = null; }
+
   map.addEventListener('pointerdown', e => {
     if (e.pointerType === 'mouse' && e.button !== 0) return;
+    // A primary pointer starts a new gesture: no other finger is really down, whatever we recorded.
+    if (e.isPrimary) resetGesture();
     try { map.setPointerCapture(e.pointerId); } catch (err) {}
     stopAnim();
     const p = local(e);
@@ -416,6 +424,7 @@
   });
   map.addEventListener('pointermove', e => {
     if (!ptrs.has(e.pointerId) || !g) return;
+    if (e.pointerType === 'mouse' && !(e.buttons & 1)) { endPointer(e, true); return; } // button released unseen
     const p = local(e);
     ptrs.set(e.pointerId, p);
     if (g.mode === 'pending' && Math.hypot(p[0] - g.start[0], p[1] - g.start[1]) > TAP_SLOP) {
@@ -450,13 +459,19 @@
     } else if (ptrs.size === 1 && g.mode === 'pinch') {
       g.mode = 'pan';
       g.last = [...ptrs.values()][0];
+    } else if (ptrs.size >= 2 && g.mode === 'pinch') {
+      g.pinch = pinchInfo(); // a third finger lifted: measure from the pair that is left, without a jump
     }
   }
   map.addEventListener('pointerup', e => endPointer(e, false));
   map.addEventListener('pointercancel', e => endPointer(e, true));
+  // Fires after pointerup too, so then the pointer is already gone and this does nothing.
+  map.addEventListener('lostpointercapture', e => endPointer(e, true));
+  document.addEventListener('visibilitychange', () => { if (document.hidden) resetGesture(); });
+  window.addEventListener('blur', resetGesture);
   map.addEventListener('contextmenu', e => e.preventDefault());
-  // iOS Safari: stop its own pinch from zooming the page.
-  for (const t of ['gesturestart', 'gesturechange']) $('mapWrap').addEventListener(t, e => e.preventDefault());
+  // iOS Safari: stop its own pinch from zooming the page, also when a finger lands outside the map.
+  for (const t of ['gesturestart', 'gesturechange']) document.addEventListener(t, e => { if (current === 'quiz') e.preventDefault(); });
   map.addEventListener('wheel', e => {
     e.preventDefault();
     stopAnim();
@@ -497,8 +512,7 @@
     const rd = S.round, id = rd.queue[rd.idx];
     answered = false;
     pin = null;
-    ptrs.clear();
-    g = null;
+    resetGesture();
     map.classList.remove('answered');
     clearReveal();
     drawPin();

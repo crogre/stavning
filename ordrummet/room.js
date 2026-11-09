@@ -79,12 +79,13 @@ function softTexture() {
 }
 function blob(g, w, d, opacity = 0.26) {
   const m = plane(g, w, d, new THREE.MeshBasicMaterial({ map: softTexture(), color: 0x3b2c1e, transparent: true, opacity, depthWrite: false }), 0, 0.012, 0, [-Math.PI / 2]);
-  m.renderOrder = 1; m.userData.keep = true; return m;
+  m.renderOrder = 1; m.userData.keep = true; m.raycast = NO_PICK; return m;
 }
 function halo(g, size, x, y, z, color = 0xFFD9A0, opacity = .55, rot) {
   const m = plane(g, size, size, new THREE.MeshBasicMaterial({ map: softTexture(), color, transparent: true, opacity, depthWrite: false, blending: THREE.AdditiveBlending }), x, y, z, rot);
-  m.renderOrder = 2; m.userData.keep = true; return m;
+  m.renderOrder = 2; m.userData.keep = true; m.raycast = NO_PICK; return m;
 }
+function NO_PICK() {}
 
 /* ---------- the furniture ----------
  * Each builder draws in local coordinates: the pivot is the middle of the footprint at floor level,
@@ -224,12 +225,12 @@ const BUILD = {
     box(g, .3, .018, .6, COL.ink, 0, .315, 0);
   },
   shelf(g) {
-    box(g, .24, .03, 1.1, COL.woodL, .0, -.2, 0);
-    for (const z of [-.42, .42]) box(g, .03, .14, .03, COL.ink, -.08, -.32, z);
+    box(g, 1.1, .03, .24, COL.woodL, 0, -.2, .12);
+    for (const x of [-.42, .42]) box(g, .03, .14, .03, COL.ink, x, -.32, .04);
     const cs = [COL.terra, COL.teal, COL.mustard, COL.plum, COL.cream];
-    cs.forEach((c, i) => box(g, .15, .26 - (i % 2) * .04, .05, c, 0, -.17, -.42 + i * .058));
-    box(g, .15, .05, .2, COL.blue, 0, -.17, .02); box(g, .13, .05, .18, COL.rose, 0, -.12, .02);
-    cyl(g, .05, .04, .08, COL.white, 0, -.17, .32); ball(g, .07, COL.leaf, 0, -.03, .32, [1, .8, 1], 7);
+    cs.forEach((c, i) => box(g, .05, .26 - (i % 2) * .04, .15, c, -.42 + i * .058, -.17, .12));
+    box(g, .2, .05, .15, COL.blue, .02, -.17, .12); box(g, .18, .05, .13, COL.rose, .02, -.12, .12);
+    cyl(g, .05, .04, .08, COL.white, .32, -.17, .12); ball(g, .07, COL.leaf, .32, -.03, .12, [1, .8, 1], 7);
   },
   globe(g) {
     cyl(g, .07, .08, .02, COL.woodD);
@@ -324,8 +325,8 @@ const BUILD = {
   },
 };
 
-/** Where things that stand on other furniture go (world coordinates). */
-const ON = { teddy: [-2.35, .5, -2.12], laptop: [.28, .76, -2.62], aquarium: [-2.67, .9, -.05], globe: [-.05, .76, -2.72], trophy: [1.92, 2.1, -2.77] };
+const BY_ID = Object.fromEntries(C.FURNITURE.map(f => [f.id, f]));
+const TURN = Math.PI / 4;
 
 /* ---------- the fixed room ---------- */
 function buildShell(scene) {
@@ -462,60 +463,73 @@ export function createRoom(host) {
     placeCamera(); invalidate();
   }
 
-  /* ---------- items ---------- */
+  /* ---------- items ----------
+   * Floor and wall things hang off itemsRoot; things standing on something else are children of it, so they come
+   * along when it is moved or turned. `layout` (id -> placement, see core.js) says where everything is.
+   */
   const items = new Map(); const itemsRoot = new THREE.Group(); scene.add(itemsRoot);
-  let cat = null, level = 0, nav = C.navGrid(0);
+  let cat = null, level = 0, layout = {}, nav = C.navGrid(0);
   const starsGroup = new THREE.Group(); scene.add(starsGroup);
 
   function makeItem(meta) {
     const g = new THREE.Group();
     BUILD[meta.id](g);
     mergeGroup(g);
-    if (meta.fp) {
-      g.position.set((meta.fp[0] + meta.fp[1]) / 2, 0, (meta.fp[2] + meta.fp[3]) / 2);
-      if (!meta.flat) blob(g, (meta.fp[1] - meta.fp[0]) * 1.45, (meta.fp[3] - meta.fp[2]) * 1.35);
-    } else if (meta.wall === 'z') {
-      g.position.set((meta.rect[0] + meta.rect[1]) / 2, (meta.rect[2] + meta.rect[3]) / 2, -ROOM + .005);
-    } else if (meta.wall === 'x') {
-      g.position.set(-ROOM + .005, (meta.rect[2] + meta.rect[3]) / 2, (meta.rect[0] + meta.rect[1]) / 2);
-      g.rotation.y = Math.PI / 2;
-    } else if (meta.on) {
-      g.position.set(...ON[meta.id]);
-    }
+    if (meta.fp && !meta.flat) blob(g, (meta.fp[1] - meta.fp[0]) * 1.45, (meta.fp[3] - meta.fp[2]) * 1.35);
     return g;
+  }
+  function applyPlacement(id) {
+    const g = items.get(id), p = layout[id];
+    if (!g || !p) return;
+    let parent = itemsRoot;
+    if (p.k === 'f') { g.position.set(p.x, 0, p.z); g.rotation.set(0, p.r * TURN, 0); }
+    else if (p.k === 'w') {
+      if (p.w === 'z') { g.position.set(p.u, p.y, -ROOM + .005); g.rotation.set(0, 0, 0); }
+      else { g.position.set(-ROOM + .005, p.y, p.u); g.rotation.set(0, Math.PI / 2, 0); }
+    } else if (p.k === 'o') {
+      parent = items.get(p.on) || itemsRoot;
+      g.position.set(p.x, C.SURFACES[p.on].y, p.z); g.rotation.set(0, p.r * TURN, 0);
+    }
+    if (g.parent !== parent) parent.add(g);
   }
   function addMeta(meta) {
     if (meta.id === 'cat') {
-      const c = makeCat(); itemsRoot.add(c.g); items.set('cat', c.g);
+      const c = makeCat(); c.g.userData.id = 'cat'; itemsRoot.add(c.g); items.set('cat', c.g);
       cat = Object.assign(c, { x: 0, z: 0, hd: .8, path: [], i: 0, mode: 'rest', until: 0, speed: .8, phase: 0, pose: 1 });
       const p = C.nearestFree(nav, [.8, 1.2]); cat.x = p[0]; cat.z = p[1]; placeCat();
       cat.until = performance.now() + 900;
       return c.g;
     }
-    const g = makeItem(meta); itemsRoot.add(g); items.set(meta.id, g); return g;
+    const g = makeItem(meta); g.userData.id = meta.id; items.set(meta.id, g);
+    if (!layout[meta.id]) layout[meta.id] = C.defaultPlacement(meta);
+    applyPlacement(meta.id);
+    return g;
   }
   function refreshNav() {
-    nav = C.navGrid(level);
+    nav = C.navGrid(level, layout);
     if (cat) { const p = C.nearestFree(nav, [cat.x, cat.z]); if (C.cellOf(p[0]) !== C.cellOf(cat.x) || C.cellOf(p[1]) !== C.cellOf(cat.z)) { cat.x = p[0]; cat.z = p[1]; } cat.path = []; cat.mode = 'rest'; cat.until = performance.now() + 1200; placeCat(); }
   }
   function drawStars() {
     starsGroup.clear();
-    const n = C.starCount(level);
-    if (!n) return;
+    const spots = C.starSpots(level, layout);
+    if (!spots.length) return;
     const geom = geo('star', starGeometry), mat = glow(COL.gold);
-    C.STAR_SPOTS.slice(0, n).forEach(([wall, u, y]) => {
+    spots.forEach(([wall, u, y]) => {
       const m = new THREE.Mesh(geom, mat);
       if (wall === 'z') m.position.set(u, y, -ROOM + .01); else { m.position.set(-ROOM + .01, y, u); m.rotation.y = Math.PI / 2; }
       starsGroup.add(m);
     });
   }
-  function setLevel(l) {
+  function setLevel(l, lay) {
     if (reveal) { scene.remove(reveal.pts); const done = reveal.resolve; reveal = null; done(); }
     level = Math.max(0, l);
+    if (lay) layout = Object.assign({}, lay);
     const want = C.furnitureFor(level), ids = new Set(want.map(f => f.id));
-    for (const [id, g] of items) if (!ids.has(id)) { itemsRoot.remove(g); g.traverse(o => { if (o.geometry) o.geometry.dispose(); }); items.delete(id); if (id === 'cat') cat = null; }
-    nav = C.navGrid(level);
+    if (sel && !ids.has(sel)) select(null);
+    for (const [id, g] of [...items]) if (!ids.has(id)) { g.removeFromParent(); g.traverse(o => { if (o.geometry && o.geometry !== UNIT_BOX()) o.geometry.dispose(); }); items.delete(id); if (id === 'cat') cat = null; }
+    nav = C.navGrid(level, layout);
     for (const m of want) if (!items.has(m.id)) addMeta(m);
+    for (const m of want) applyPlacement(m.id);
     for (const g of items.values()) g.scale.setScalar(1);
     refreshNav(); drawStars(); invalidate(); wake();
   }
@@ -524,11 +538,12 @@ export function createRoom(host) {
   let reveal = null;
   const easeBack = t => { const c = 1.5; const u = t - 1; return 1 + (c + 1) * u * u * u + c * u * u; };
   const sparkleGeo = new THREE.BufferGeometry();
-  function revealLevel(l) {
+  function revealLevel(l, lay) {
     level = l;
+    if (lay) layout = Object.assign({}, lay);
     const meta = C.FURNITURE[l - 1];
     return new Promise(resolve => {
-      nav = C.navGrid(level);
+      nav = C.navGrid(level, layout);
       if (!meta) { // past the last piece: one more star on the wall
         drawStars(); invalidate(); wake(); resolve(); return;
       }
@@ -538,7 +553,7 @@ export function createRoom(host) {
       g.scale.setScalar(.001);
       const pos = new THREE.Vector3();
       if (meta.id === 'cat') pos.set(cat.x, .25, cat.z);
-      else { pos.copy(g.position); if (meta.fp) pos.y = .5; }
+      else { g.getWorldPosition(pos); if (meta.fp) pos.y = .5; }
       // a few gold specks rising around the piece
       const n = 18, arr = new Float32Array(n * 3), seeds = [];
       for (let i = 0; i < n; i++) seeds.push([Math.random() * 6.28, .2 + Math.random() * .5, .5 + Math.random() * .8]);
@@ -627,11 +642,174 @@ export function createRoom(host) {
     return true;
   }
 
+  /* ---------- moving furniture ----------
+   * In edit mode a press on a thing picks it up; dragging moves it only through spots where it may stand
+   * (core.canPlace). A press on an empty spot turns the room as usual, and a tap there lets go of the selection.
+   */
+  let editing = null, sel = null, outline = null, itemDrag = null;
+  const OK_COL = 0x2E5F58, NO_COL = 0xC4633F;
+  const outlineMat = new THREE.MeshBasicMaterial({ color: OK_COL, depthTest: false, depthWrite: false, transparent: true, opacity: .95 });
+  const raycaster = new THREE.Raycaster(), ndc = new THREE.Vector2(), hitV = new THREE.Vector3();
+  const snap = (v, step) => Math.round(v / step) * step;
+  const r3 = v => Math.round(v * 1000) / 1000;
+
+  function makeOutline(id) {
+    const f = BY_ID[id], g = new THREE.Group(), t = .03;
+    const frame = (w, d) => { // a thin frame in the local xz plane
+      for (const [x, z, sx, sz] of [[0, -d / 2, w + t, t], [0, d / 2, w + t, t], [-w / 2, 0, t, d], [w / 2, 0, t, d]]) {
+        const m = new THREE.Mesh(UNIT_BOX(), outlineMat); m.position.set(x, 0, z); m.scale.set(sx, .006, sz); m.renderOrder = 10; m.raycast = NO_PICK; g.add(m);
+      }
+    };
+    if (f.fp) { frame(f.fp[1] - f.fp[0] + .08, f.fp[3] - f.fp[2] + .08); g.position.y = .02; }
+    else if (f.on) { frame(f.s[0] + .06, f.s[1] + .06); g.position.y = .01; }
+    else if (f.wall) { frame(f.rect[1] - f.rect[0] + .08, f.rect[3] - f.rect[2] + .08); g.rotation.x = Math.PI / 2; g.position.z = .012; }
+    g.userData.outline = true;
+    return g;
+  }
+  function select(id) {
+    if (outline) { outline.removeFromParent(); outline = null; }
+    sel = id && items.has(id) && C.canMove(id) ? id : null;
+    if (sel) { outline = makeOutline(sel); items.get(sel).add(outline); }
+    outlineMat.color.setHex(OK_COL);
+    invalidate();
+    if (editing && editing.onSelect) editing.onSelect(sel);
+  }
+  function setPlacement(id, p) {
+    layout[id] = p; applyPlacement(id); invalidate();
+  }
+  function committed(id) {
+    refreshNav(); drawStars(); invalidate();
+    if (editing && editing.onChange) editing.onChange(id, layout[id]);
+  }
+  function rayFrom(e) {
+    const r = canvas.getBoundingClientRect();
+    ndc.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
+    camera.updateMatrixWorld();
+    raycaster.setFromCamera(ndc, camera);
+    return raycaster.ray;
+  }
+  function pick(e) {
+    rayFrom(e);
+    for (const h of raycaster.intersectObjects(itemsRoot.children, true)) {
+      let o = h.object; while (o && !o.userData.id) o = o.parent;
+      if (o) return { id: o.userData.id, point: h.point.clone() };
+    }
+    return null;
+  }
+  const planeHit = (ray, nx, ny, nz, c) => ray.intersectPlane(new THREE.Plane(new THREE.Vector3(nx, ny, nz), c), hitV) ? hitV.clone() : null;
+  /** Where on the walls the pointer is: {w, u, y} or, outside both walls, the spot on the wall `prefer`. */
+  function wallAt(ray, prefer) {
+    const hits = [];
+    for (const w of ['z', 'x']) {
+      const p = w === 'z' ? planeHit(ray, 0, 0, 1, ROOM) : planeHit(ray, 1, 0, 0, ROOM);
+      if (!p) continue;
+      const u = w === 'z' ? p.x : p.z, inside = u >= -ROOM && u <= ROOM && p.y >= 0 && p.y <= WALL_H;
+      hits.push({ w, u, y: p.y, d: ray.origin.distanceTo(p), inside });
+    }
+    const inside = hits.filter(h => h.inside).sort((a, b) => a.d - b.d);
+    return inside[0] || hits.find(h => h.w === prefer) || null;
+  }
+  /** The top that the pointer is over: {on, x, z} in that item's coordinates, or null. */
+  function topAt(ray, current) {
+    let best = null;
+    for (const on of Object.keys(C.SURFACES)) {
+      const host = items.get(on), s = C.SURFACES[on];
+      if (!host || !layout[on]) continue;
+      host.updateMatrixWorld(true);
+      const p = planeHit(ray, 0, 1, 0, -s.y); if (!p) continue;
+      const d = ray.origin.distanceTo(p), l = host.worldToLocal(p.clone()), [x0, x1, z0, z1] = s.rect, m = .12;
+      const inside = l.x > x0 - m && l.x < x1 + m && l.z > z0 - m && l.z < z1 + m;
+      if (inside && (!best || d < best.d)) best = { on, x: l.x, z: l.z, d };
+      if (!inside && on === current && !best) best = { on, x: Math.max(x0, Math.min(x1, l.x)), z: Math.max(z0, Math.min(z1, l.z)), d: Infinity, outside: true };
+    }
+    return best;
+  }
+  /** Moves the dragged item toward `cand`; slides along an obstacle when only one direction is free. */
+  function tryMove(id, cand) {
+    const cur = layout[id], tries = [cand];
+    if ((cand.k === 'f') || (cand.k === 'o' && cand.on === cur.on)) tries.push(Object.assign({}, cand, { z: cur.z }), Object.assign({}, cand, { x: cur.x }));
+    if (cand.k === 'w' && cand.w === cur.w) tries.push(Object.assign({}, cand, { y: cur.y }), Object.assign({}, cand, { u: cur.u }));
+    const okFirst = C.canPlace(layout, id, cand);
+    outlineMat.color.setHex(okFirst ? OK_COL : NO_COL);
+    for (const t of tries) {
+      if (C.samePlacement(t, cur)) return false;
+      if (C.canPlace(layout, id, t)) { setPlacement(id, t); return true; }
+    }
+    invalidate();
+    return false;
+  }
+  function startItemDrag(e, id, point) {
+    const p = layout[id];
+    itemDrag = { id, pointerId: e.pointerId, x: e.clientX, y: e.clientY, moved: false, changed: false, from: Object.assign({}, p) };
+    if (p.k === 'f') { itemDrag.planeY = point.y; itemDrag.off = [p.x - point.x, p.z - point.z]; }
+    else if (p.k === 'w') { const u = p.w === 'z' ? point.x : point.z; itemDrag.off = [p.u - u, p.y - point.y]; }
+  }
+  function dragItem(e) {
+    const d = itemDrag, p = layout[d.id];
+    if (!d.moved && Math.hypot(e.clientX - d.x, e.clientY - d.y) < 6) return;
+    d.moved = true;
+    const ray = rayFrom(e);
+    let cand = null;
+    if (p.k === 'f') {
+      const h = planeHit(ray, 0, 1, 0, -d.planeY);
+      if (h) cand = { k: 'f', x: r3(snap(h.x + d.off[0], .05)), z: r3(snap(h.z + d.off[1], .05)), r: p.r };
+    } else if (p.k === 'w') {
+      const h = wallAt(ray, p.w);
+      if (h) cand = { k: 'w', w: h.w, u: r3(snap(h.u + d.off[0], .05)), y: r3(snap(h.y + d.off[1], .05)) };
+    } else if (p.k === 'o') {
+      const h = topAt(ray, p.on);
+      if (h) cand = { k: 'o', on: h.on, x: r3(snap(h.x, .025)), z: r3(snap(h.z, .025)), r: p.r };
+    }
+    if (cand && tryMove(d.id, cand)) d.changed = true;
+  }
+  function endItemDrag() {
+    const d = itemDrag; itemDrag = null;
+    outlineMat.color.setHex(OK_COL); invalidate();
+    if (d && d.changed && !C.samePlacement(d.from, layout[d.id])) committed(d.id);
+  }
+  /** Moves the selected item one step with the keyboard: dir is 'left', 'right', 'up' or 'down' on screen. */
+  function nudge(dir) {
+    if (!sel) return false;
+    const p = layout[sel], step = .1;
+    const sx = Math.cos(view.az), sz = -Math.sin(view.az), fx = -Math.sin(view.az), fz = -Math.cos(view.az); // screen right / away on the floor
+    const [a, b] = { left: [-1, 0], right: [1, 0], up: [0, 1], down: [0, -1] }[dir] || [0, 0];
+    let cand;
+    if (p.k === 'f') cand = Object.assign({}, p, { x: r3(p.x + (a * sx + b * fx) * step), z: r3(p.z + (a * sz + b * fz) * step) });
+    else if (p.k === 'w') cand = Object.assign({}, p, p.w === 'z' ? { u: r3(p.u + a * step) } : { u: r3(p.u - a * step) }, { y: r3(p.y + b * step) });
+    else {
+      const host = items.get(p.on); host.updateMatrixWorld(true);
+      const w = host.localToWorld(new THREE.Vector3(p.x, 0, p.z)).add(new THREE.Vector3((a * sx + b * fx) * step * .5, 0, (a * sz + b * fz) * step * .5));
+      const l = host.worldToLocal(w); cand = Object.assign({}, p, { x: r3(l.x), z: r3(l.z) });
+    }
+    if (!C.canPlace(layout, sel, cand)) return false;
+    setPlacement(sel, cand); committed(sel); return true;
+  }
+  function turnSelected() {
+    if (!sel) return false;
+    const q = C.turnItem(layout, sel);
+    if (!q) return false;
+    setPlacement(sel, q); committed(sel); return true;
+  }
+
   /* ---------- orbit by dragging ---------- */
   let drag = null;
   canvas.style.touchAction = 'none';
-  canvas.addEventListener('pointerdown', e => { drag = { id: e.pointerId, x: e.clientX, y: e.clientY }; view.vaz = view.vpol = 0; try { canvas.setPointerCapture(e.pointerId); } catch (_) {} wake(); });
+  canvas.addEventListener('pointerdown', e => {
+    if (editing && !itemDrag && !drag) {
+      const hit = pick(e);
+      if (hit && C.canMove(hit.id)) {
+        if (sel !== hit.id) select(hit.id);
+        startItemDrag(e, hit.id, hit.point);
+        try { canvas.setPointerCapture(e.pointerId); } catch (_) {}
+        return;
+      }
+      if (hit && editing.onInfo) editing.onInfo(hit.id);
+    }
+    if (drag) return;
+    drag = { id: e.pointerId, x: e.clientX, y: e.clientY, sx: e.clientX, sy: e.clientY }; view.vaz = view.vpol = 0; try { canvas.setPointerCapture(e.pointerId); } catch (_) {} wake();
+  });
   canvas.addEventListener('pointermove', e => {
+    if (itemDrag && e.pointerId === itemDrag.pointerId) { dragItem(e); return; }
     if (!drag || e.pointerId !== drag.id) return;
     const dx = e.clientX - drag.x, dy = e.clientY - drag.y; drag.x = e.clientX; drag.y = e.clientY;
     const az = -dx * .0075, pol = -dy * .0055;
@@ -640,7 +818,15 @@ export function createRoom(host) {
     view.vaz = az; view.vpol = pol;
     placeCamera(); invalidate(); wake();
   });
-  const endDrag = e => { if (drag && e.pointerId === drag.id) { drag = null; if (reduced) view.vaz = view.vpol = 0; wake(); } };
+  const endDrag = e => {
+    if (itemDrag && e.pointerId === itemDrag.pointerId) { endItemDrag(); return; }
+    if (drag && e.pointerId === drag.id) {
+      const tap = Math.hypot(e.clientX - drag.sx, e.clientY - drag.sy) < 6;
+      drag = null; if (reduced) view.vaz = view.vpol = 0;
+      if (editing && tap && e.type === 'pointerup' && sel) select(null);
+      wake();
+    }
+  };
   canvas.addEventListener('pointerup', endDrag); canvas.addEventListener('pointercancel', endDrag);
   function updateOrbit(dt) {
     if (drag || (Math.abs(view.vaz) < .0002 && Math.abs(view.vpol) < .0002)) return !!drag;
@@ -664,7 +850,7 @@ export function createRoom(host) {
     raf = 0;
     if (!running()) return;
     const dt = last ? Math.min(.05, (now - last) / 1000) : .016;
-    const onlyCat = !drag && !reveal && focus.k <= .001 && Math.abs(view.vaz) < .0002;
+    const onlyCat = !drag && !itemDrag && !reveal && focus.k <= .001 && Math.abs(view.vaz) < .0002;
     if (onlyCat && last && now - last < 30) { raf = requestAnimationFrame(tick); return; } // the cat is fine at 30 fps
     last = now;
     let busy = false;
@@ -692,6 +878,16 @@ export function createRoom(host) {
   return {
     setLevel,
     reveal: revealLevel,
+    /** Edit mode on/off. handlers: onSelect(id|null), onChange(id, placement), onInfo(id) for things that can't move. */
+    setEditing(on, handlers) {
+      if (itemDrag) endItemDrag();
+      editing = on ? (handlers || {}) : null;
+      if (!on) select(null);
+      canvas.setAttribute('aria-label', on ? 'Ditt rum. Tryck på en sak och dra den dit du vill.' : 'Ditt rum i 3D. Dra för att titta runt.');
+      invalidate();
+    },
+    select, turnSelected, nudge,
+    selected: () => sel,
     /** Pause all drawing while the room is out of sight (during exercises). */
     setActive(on) { wanted = !!on; if (wanted) { fit(); dirty = true; wake(); } else { if (raf) cancelAnimationFrame(raf); raf = 0; clearTimeout(sleepT); } },
     debug: {
@@ -708,6 +904,25 @@ export function createRoom(host) {
       itemIds: () => [...items.keys()],
       box: id => { const g = items.get(id); if (!g) return null; const b = new THREE.Box3().setFromObject(g); return { x0: b.min.x, x1: b.max.x, y1: b.max.y, z0: b.min.z, z1: b.max.z }; },
       starCount: () => starsGroup.children.length,
+      layout: () => JSON.parse(JSON.stringify(layout)),
+      selected: () => sel,
+      probe: (x, y) => { const e = { clientX: x, clientY: y }; const h = pick(e); const ray = rayFrom(e); return { pick: h && h.id, top: topAt(ray, null), wall: wallAt(ray, 'z') }; },
+      /** A screen point (CSS px) where a press picks item `id`, nearest its middle, for tests. */
+      grabPoint: id => {
+        const g = items.get(id); if (!g) return null;
+        const b = new THREE.Box3().setFromObject(g, true), r = canvas.getBoundingClientRect(), pts = [];
+        camera.updateMatrixWorld();
+        for (const x of [b.min.x, b.max.x]) for (const y of [b.min.y, b.max.y]) for (const z of [b.min.z, b.max.z]) { const v = new THREE.Vector3(x, y, z).project(camera); pts.push([r.left + (v.x + 1) / 2 * r.width, r.top + (1 - v.y) / 2 * r.height]); }
+        const x0 = Math.min(...pts.map(p => p[0])), x1 = Math.max(...pts.map(p => p[0])), y0 = Math.min(...pts.map(p => p[1])), y1 = Math.max(...pts.map(p => p[1]));
+        const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2, cand = [];
+        for (let i = 0; i <= 12; i++) for (let j = 0; j <= 12; j++) cand.push([x0 + (x1 - x0) * i / 12, y0 + (y1 - y0) * j / 12]);
+        cand.sort((a, c) => Math.hypot(a[0] - cx, a[1] - cy) - Math.hypot(c[0] - cx, c[1] - cy));
+        for (const [x, y] of cand) { const h = pick({ clientX: x, clientY: y }); if (h && h.id === id) return { x, y }; }
+        return null;
+      },
+      /** Screen position (CSS px, relative to the canvas) of an item's centre, for tests. */
+      screenOf: id => { const g = items.get(id); if (!g) return null; const b = new THREE.Box3().setFromObject(g, true); const c = b.getCenter(new THREE.Vector3()); if (BY_ID[id] && BY_ID[id].fp) c.y = Math.min(c.y, .3); camera.updateMatrixWorld(); c.project(camera); const r = canvas.getBoundingClientRect(); return { x: r.left + (c.x + 1) / 2 * r.width, y: r.top + (1 - c.y) / 2 * r.height }; },
+      worldToScreen: (x, y, z) => { const c = new THREE.Vector3(x, y, z); camera.updateMatrixWorld(); c.project(camera); const r = canvas.getBoundingClientRect(); return { x: r.left + (c.x + 1) / 2 * r.width, y: r.top + (1 - c.y) / 2 * r.height }; },
       render: () => renderer.render(scene, camera),
     },
   };

@@ -42,7 +42,13 @@ const speakBtn = (t, lang) => `<button class="speak" data-say="${esc(t)}" data-l
 document.addEventListener('click', e => { const b = e.target.closest('[data-say]'); if (b) speak(b.dataset.say, b.dataset.lang); });
 
 /* ---------- the room ---------- */
-let room = null, roomReady = false;
+let room = null, roomReady = false, shownLevel = 0;
+/** Where everything stands at `level`. Newcomers whose usual spot is taken get a free one, which is saved. */
+function layoutAt(level) {
+  if (C.settleLayout(ST, level)) save();
+  return C.layoutFor(ST, level);
+}
+function showRoom(level) { shownLevel = level; if (room) room.setLevel(level, layoutAt(level)); updateEditBtn(); }
 function showFallback() {
   const f = $('#roomFallback'); f.hidden = false; drawFallback();
 }
@@ -60,8 +66,7 @@ async function initRoom() {
   roomReady = true;
   if (!room) { showFallback(); maybeReveal(); return; }
   if (DEBUG) window.__room = room.debug;
-  const start = Math.min(C.levelOf(ST), ST.seenLevel);
-  room.setLevel(start);
+  showRoom(Math.min(C.levelOf(ST), ST.seenLevel));
   room.setActive(!L);
   maybeReveal();
 }
@@ -101,20 +106,93 @@ $('#settingsBtn').addEventListener('click', openSettings);
 /* ---------- reveal after finishing a list ---------- */
 let revealing = false;
 async function maybeReveal() {
-  if (revealing || L || !roomReady) return;
+  if (revealing || L || !roomReady || EDIT) return;
   const lv = C.levelOf(ST);
   if (lv <= ST.seenLevel) return;
-  revealing = true;
+  revealing = true; updateEditBtn();
   const nl = ST.seenLevel + 1, meta = C.FURNITURE[nl - 1], card = $('#revealCard');
   card.innerHTML = `<div><h2>Nivå ${nl}</h2><p>${meta ? 'Nu har du ' + esc(meta.a) + ' i rummet.' : 'En ny stjärna på väggen.'}</p></div><button class="btn" id="revealOk">Fint</button>`;
   card.hidden = false;
   const dismissed = new Promise(res => { $('#revealOk').onclick = res; });
   ST.seenLevel = nl; save();
-  if (room) await room.reveal(nl); else drawFallback();
+  shownLevel = nl;
+  if (room) await room.reveal(nl, layoutAt(nl)); else drawFallback();
   await dismissed;
-  card.hidden = true; revealing = false;
+  card.hidden = true; revealing = false; updateEditBtn();
   maybeReveal();
 }
+
+/* ---------- moving furniture ---------- */
+let EDIT = null;
+const MOVE_ICON = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18M3 12h18M12 3 9.5 5.5M12 3l2.5 2.5M12 21l-2.5-2.5M12 21l2.5-2.5M3 12l2.5-2.5M3 12l2.5 2.5M21 12l-2.5-2.5M21 12l-2.5 2.5"/></svg>';
+function updateEditBtn() {
+  const b = $('#editBtn');
+  b.hidden = !room || !roomReady || revealing || !!EDIT || !!L || shownLevel < 1;
+  $('#settingsBtn').hidden = !!EDIT;
+}
+const NOT_MOVABLE = { cat: 'Katten går dit den vill.', curtains: 'Gardinerna sitter vid fönstret.' };
+function whereText(id) {
+  const f = C.FURNITURE.find(x => x.id === id), k = C.kindOf(f);
+  if (k === 'floor') return f.flat ? 'Ligger på golvet. Dra den dit du vill, eller vrid den.' : 'Står på golvet. Dra den dit du vill, eller vrid den.';
+  if (k === 'wall') return 'Sitter på väggen. Dra den längs väggarna.';
+  const tops = Object.keys(C.SURFACES).filter(h => C.furnitureFor(shownLevel).some(x => x.id === h)).map(h => C.FURNITURE.find(x => x.id === h).name.toLowerCase());
+  const list = tops.length > 1 ? tops.slice(0, -1).join(', ') + ' eller ' + tops[tops.length - 1] : tops[0];
+  return `Står ovanpå något. Dra den till ${list}, eller vrid den.`;
+}
+function openEdit() {
+  if (!room || revealing || L) return;
+  EDIT = { sel: null, msg: '' };
+  $('#home').classList.add('editing');
+  room.setEditing(true, {
+    onSelect: id => { EDIT.sel = id; EDIT.msg = ''; renderEditPanel(); },
+    onChange: (id, p) => { if (!ST.room) ST.room = { at: 0, items: {} }; ST.room.items[id] = p; ST.room.at = Date.now(); save(); },
+    onInfo: id => { if (NOT_MOVABLE[id]) { EDIT.msg = NOT_MOVABLE[id]; renderEditPanel(); } },
+  });
+  updateEditBtn();
+  renderEditPanel();
+}
+function closeEdit() {
+  if (!EDIT) return;
+  room.setEditing(false);
+  EDIT = null;
+  $('#home').classList.remove('editing');
+  updateEditBtn();
+  renderHome();
+  maybeReveal();
+}
+function renderEditPanel() {
+  if (!EDIT) return;
+  const id = EDIT.sel, f = id && C.FURNITURE.find(x => x.id === id), canTurn = f && C.kindOf(f) !== 'wall';
+  const selHTML = f
+    ? `<div class="editsel"><div class="editname"><b>${esc(f.name)}</b><span>${esc(whereText(id))}</span></div>${canTurn ? '<button class="btn quiet" id="turnB">Vrid</button>' : ''}</div>`
+    : '<p class="edithelp">Tryck på en sak och dra den dit du vill. Saker på golvet stannar på golvet, tavlor och hyllor sitter på väggarna och små saker står på bord, byrå, säng eller bokhylla. Dra på en tom yta för att titta runt.</p>';
+  $('#panel').innerHTML = `<div class="panelinner editpanel">
+    <div class="edithead"><h2>Möblera</h2><button class="btn" id="editDone">Klar</button></div>
+    ${selHTML}
+    <p class="editmsg" id="editMsg" role="status">${esc(EDIT.msg || '')}</p>
+    <div id="editResetArea"><button class="textbtn" id="editReset">Ställ tillbaka allt</button></div>
+  </div>`;
+  $('#editDone').onclick = closeEdit;
+  if ($('#turnB')) $('#turnB').onclick = () => { if (!room.turnSelected()) { EDIT.msg = 'Den får inte plats om den vrids här. Flytta den lite först.'; $('#editMsg').textContent = EDIT.msg; } else $('#editMsg').textContent = ''; };
+  $('#editReset').onclick = () => {
+    $('#editResetArea').innerHTML = `<p class="editmsg">Allt flyttas tillbaka dit det stod från början.</p><div class="sheetbtns"><button class="btn danger" id="resetLayoutYes">Ja, ställ tillbaka</button><button class="btn quiet" id="resetLayoutNo">Nej</button></div>`;
+    $('#resetLayoutNo').onclick = renderEditPanel;
+    $('#resetLayoutYes').onclick = () => {
+      ST.room = { at: Date.now(), items: {} }; save();
+      room.select(null); EDIT.sel = null; EDIT.msg = '';
+      showRoom(shownLevel); renderEditPanel();
+    };
+  };
+}
+$('#editBtn').innerHTML = MOVE_ICON;
+$('#editBtn').addEventListener('click', openEdit);
+document.addEventListener('keydown', e => {
+  if (!EDIT || !$('#sheet').hidden || e.target.closest('input,textarea')) return;
+  const dir = { ArrowLeft: 'left', ArrowRight: 'right', ArrowUp: 'up', ArrowDown: 'down' }[e.key];
+  if (dir && room.selected()) { e.preventDefault(); room.nudge(dir); return; }
+  if ((e.key === 'r' || e.key === 'R') && room.selected() && $('#turnB')) { e.preventDefault(); $('#turnB').click(); return; }
+  if (e.key === 'Escape') { e.preventDefault(); if (room.selected()) room.select(null); else closeEdit(); }
+});
 
 /* ---------- lesson ---------- */
 let L = null;
@@ -130,6 +208,7 @@ function startLesson(list) {
   $('#home').hidden = true;
   $('#lesson').hidden = false;
   if (room) room.setActive(false);
+  updateEditBtn();
   next();
 }
 function endLesson() {
@@ -138,6 +217,7 @@ function endLesson() {
   $('#home').hidden = false;
   renderHome();
   if (room) room.setActive(true);
+  updateEditBtn();
   maybeReveal();
 }
 
@@ -462,7 +542,7 @@ function openSettings() {
       let st;
       try { st = C.importCode($('#codeIn').value); } catch (e) { const er = $('#codeErr'); er.hidden = false; er.textContent = 'Koden går inte att läsa. Kontrollera att hela koden kom med.'; return; }
       ST = st; ST.seenLevel = C.levelOf(ST); save(true);
-      if (room) room.setLevel(C.levelOf(ST));
+      showRoom(C.levelOf(ST));
       $('#revealCard').hidden = true; revealing = false;
       closeSheet(); renderHome();
     };
@@ -472,7 +552,7 @@ function openSettings() {
     $('#resetNo').onclick = openSettings;
     $('#resetYes').onclick = () => {
       store.clear(); ST = C.emptyState(); save(true);
-      if (room) room.setLevel(0);
+      showRoom(0);
       $('#revealCard').hidden = true; revealing = false;
       closeSheet(); renderHome();
     };
@@ -485,8 +565,8 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('#sheet
 window.addEventListener('storage', e => {
   if (e.key !== C.STORE_KEY || L) return;
   ST = store.load();
-  renderHome();
-  if (room) room.setLevel(Math.min(C.levelOf(ST), ST.seenLevel));
+  if (!EDIT) renderHome();
+  showRoom(Math.min(C.levelOf(ST), ST.seenLevel));
   maybeReveal();
 });
 
